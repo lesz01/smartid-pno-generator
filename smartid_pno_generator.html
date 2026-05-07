@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart-ID PNO Generator</title>
+</head>
+<body>
+<script>
+function CalculatePersonalNumber(){
+	var country = document.querySelector('input[name="country"]:checked').value;
+	var authentication = document.querySelector('input[name="authentication"]:checked').value;
+	var edp = document.querySelector('input[name="edp"]:checked').value;
+	let gender = document.querySelector('input[name="gender"]:checked').value;
+	let format = document.querySelector('input[name="format"]:checked').value;
+	let prodReady = document.querySelector('input[name="prod_ready"]:checked').value;
+	
+	var conditionedDate = getConditionedDate(authentication, edp, prodReady);
+	console.log(conditionedDate);
+	var result = country === "Estonia" ? estonianPersonalNumberGeneration(conditionedDate, gender) : latvianPersonalNumberGeneration(conditionedDate, format);
+	
+	document.getElementById('personalNumber').innerHTML = result;
+	document.getElementById('birthDate').innerHTML = conditionedDate.getFullYear() + "/" + (conditionedDate.getMonth() + 1) + "/" + conditionedDate.getDate();
+}
+
+function getRandomDate(from, to) {
+    const fromTime = from.getTime();
+    const toTime = to.getTime();
+    return new Date(fromTime + Math.random() * (toTime - fromTime));
+}
+
+function getConditionedDate(authentication, edp, prodReady){
+	var fromYear = 1800;
+	var toYear = 2002;
+	if(prodReady === "True"){
+		fromYear = 1700;
+		toYear = 1799;
+	}
+
+	var randomDate = getRandomDate(new Date(fromYear, 1, 1), new Date(toYear, 1, 1));
+	
+	// When year is odd -> authentication successful otherwise failure
+	// When month is odd -> edp provides full data otherwise it will be none
+	if(authentication === "Successful" && edp === "Full"){
+		while (randomDate.getFullYear()%2 === 0 || (randomDate.getMonth() + 1)%2 === 0) {
+			randomDate = getRandomDate(new Date(fromYear, 1, 1), new Date(toYear, 1, 1));
+		}
+	}
+	else if(authentication === "Successful" && edp === "None"){
+		while (randomDate.getFullYear()%2 === 0 || (randomDate.getMonth() + 1)%2 === 1) {
+			randomDate = getRandomDate(new Date(fromYear, 1, 1), new Date(toYear, 1, 1));
+		}
+	}
+	else if(authentication === "Failed"){
+		while (randomDate.getFullYear()%2 === 1) {
+			randomDate = getRandomDate(new Date(fromYear, 1, 1), new Date(toYear, 1, 1));
+		}
+	}
+	return randomDate;
+}
+
+function estonianPersonalNumberGeneration(birthDate, gender){
+	var genderAndCenturyAndFirstDigitMapping = {
+		Female: { 18: '8', 19: '2', 20: '4', 21: '6' },
+		Male: { 18: '9', 19: '1', 20: '3', 21: '5' }
+	};
+	
+	var centuryOfBirthDate = Math.ceil(birthDate.getFullYear()/100);
+	
+	// GYYMMDDSSSC -> G: sex and century; YY: year; MM: month; DD: day; SSS: serialnumber; C: checksum
+	var centuryAndSexDigit = genderAndCenturyAndFirstDigitMapping[gender][centuryOfBirthDate];
+	var yearDigits = ("0" + birthDate.getFullYear()%100).slice(-2);
+	var monthDigits = ("0" + (birthDate.getMonth() + 1)).slice(-2);
+	var dayDigits = ("0" + birthDate.getDate()).slice(-2);
+	var serialNumber = ("00" + Math.floor(Math.random() * (1000))).slice(-3);
+	
+	var firstTenDigit = centuryAndSexDigit.concat(yearDigits).concat(monthDigits).concat(dayDigits).concat(serialNumber);
+	var checksum = estonianChecksumGenerator(firstTenDigit);
+	
+	var personalNumber = firstTenDigit.concat(checksum);
+	
+	return personalNumber;
+}
+
+function estonianChecksumGenerator(firstTenDigit) {
+	var singleDigitModMultiplier = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 1 ];
+    var doubleDigitModMultiplier = [ 3, 4, 5, 6, 7, 8, 9, 1, 2, 3 ];
+
+    var total = 0;
+
+	for (var index = 0; index < 10; index++)
+	{
+		total += firstTenDigit[index] * singleDigitModMultiplier[index];
+	}
+
+	var mod = total % 11;
+
+	if (mod === 10)
+	{
+		total = 0;
+		for (var index = 0; index < 10; index++)
+		{
+			total += firstTenDigit[index] * doubleDigitModMultiplier[index];
+		}
+		mod = total % 11;
+		if (mod === 10)
+		{
+			mod = 0;
+		}
+	}
+
+	return mod;
+}
+
+function latvianPersonalNumberGeneration(birthDate, format){
+	var personalNumber = "";
+	if(format === "Original")
+	{
+		var centuryAndFirstDigitMapping = {
+			18: '9', 19: '0', 20: '1', 21: '2'
+		};
+		
+		var centuryOfBirthDate = Math.ceil(birthDate.getFullYear()/100);
+		
+		// DDMMYYGSSSC -> DD: day; MM: month; YY: year; G: century; SSS: serialnumber; C: checksum
+		var dayDigits = ("0" + birthDate.getDate()).slice(-2);
+		var monthDigits = ("0" + (birthDate.getMonth() + 1)).slice(-2);
+		var yearDigits = ("0" + birthDate.getFullYear()%100).slice(-2);
+		var centuryDigit = centuryAndFirstDigitMapping[centuryOfBirthDate];
+		var serialNumber = ("00" + Math.floor(Math.random() * (1000))).slice(-3);
+		
+		var firstTenDigit = dayDigits.concat(monthDigits).concat(yearDigits).concat(centuryDigit).concat(serialNumber);
+		var checksum = latvianChecksumGenerator(firstTenDigit);
+		
+		personalNumber = firstTenDigit.concat(checksum);
+	}
+	else
+	{
+		personalNumber += "32";
+		personalNumber += ("00000000" + Math.floor(Math.random() * (100000000))).slice(-8);
+		personalNumber += latvianChecksumGenerator(personalNumber);
+	}
+    var temp = personalNumber;
+	return temp.slice(0, 6) + "-" + temp.slice(6);
+}
+
+function latvianChecksumGenerator(firstTenDigit) {
+	var digitModMultiplier = [ 1, 6, 3, 7, 9, 10, 5, 8, 4, 2 ];
+    var baseCheckNumber = 1101;
+
+	for (var index = 0; index < 10; index++)
+	{
+		baseCheckNumber -= firstTenDigit[index] * digitModMultiplier[index];
+	}
+
+	var mod = (baseCheckNumber % 11) % 10;
+	return mod;
+}
+
+window.addEventListener("load", CalculatePersonalNumber);
+
+function countryClickHandling(e){
+	if(e.srcElement.value == "Estonia"){
+		document.getElementById('gender_div').style.display = 'inline-flex';
+		document.getElementById('authentication_div').style.display = 'inline-flex';
+		document.getElementById('edp_div').style.display = 'inline-flex';
+		document.getElementById('format_div').style.display = 'none';
+		document.getElementById('prod_ready_div').style.display = 'inline-flex';
+		
+		document.getElementById('gender_female_input').checked = true;
+		document.getElementById('authentication_successful_input').checked = true;
+		document.getElementById('edp_full_input').checked = true;
+		document.getElementById('format_original_input').checked = true;
+		document.getElementById('prod_ready_false_input').checked = true;
+	}
+	else{
+		document.getElementById('gender_div').style.display = 'none';
+		document.getElementById('authentication_div').style.display = 'inline-flex';
+		document.getElementById('edp_div').style.display = 'inline-flex';
+		document.getElementById('prod_ready_div').style.display = 'inline-flex';
+		document.getElementById('format_div').style.display = 'inline-flex';
+		
+		document.getElementById('gender_female_input').checked = true;
+		document.getElementById('authentication_successful_input').checked = true;
+		document.getElementById('edp_full_input').checked = true;
+		document.getElementById('format_original_input').checked = true;
+		document.getElementById('prod_ready_false_input').checked = true;
+	}
+}
+
+function authenticationClickHandling(e){
+	if(e.srcElement.value == "Successful"){
+		document.getElementById('edp_div').style.display = 'inline-flex';
+		if(document.querySelector('input[name="country"]:checked').value == "Estonia"){
+			document.getElementById('gender_div').style.display = 'inline-flex';
+		}
+	}
+	else{
+		document.getElementById('edp_div').style.display = 'none';
+		document.getElementById('edp_full_input').checked = true;
+		document.getElementById('gender_div').style.display = 'none';
+		document.getElementById('gender_female_input').checked = true;
+	}
+}
+
+function formatClickHandling(e){
+	if(e.srcElement.value == "Original"){
+		document.getElementById('prod_ready_div').style.display = 'inline-flex';
+		document.getElementById('edp_div').style.display = 'inline-flex';
+		document.getElementById('authentication_div').style.display = 'inline-flex';
+	}
+	else{
+		document.getElementById('prod_ready_div').style.display = 'none';
+		document.getElementById('edp_div').style.display = 'none';
+		document.getElementById('authentication_div').style.display = 'none';
+		
+		document.getElementById('prod_ready_false_input').checked = true;
+		document.getElementById('edp_full_input').checked = true;
+		document.getElementById('authentication_successful_input').checked = true;
+	}
+}
+</script>
+
+<div style="width:350px; height: 230px; border: solid 1px; padding: 10px; margin-top:20px">
+<strong style="margin: 0px">Personal Number Generator</strong>
+
+  <p>Conditions of the generated personal number:</p>
+  <div style="height: 100px">
+	<div style="display: inline-flex">
+		<p style="font-weight: bold; margin: auto; width: 110px; text-align: right">Country:</p>
+		<div style="margin-left: 10px; width: 120px; cursor: default">
+  			<input style="cursor: pointer" onclick="countryClickHandling(event)" type="radio" id="country_estonia_input" name="country" value="Estonia" checked>
+  			<label style="cursor: pointer" for="country_estonia_input">Estonia</label><br>
+		</div>
+		<div style="width: 120px; cursor: default">
+  			<input style="cursor: pointer" onclick="countryClickHandling(event)" type="radio" id="country_latvia_input" name="country" value="Latvia">
+  			<label style="cursor: pointer" for="country_latvia_input">Latvia</label><br>
+		</div>
+	</div>
+	
+	<br>
+
+  <div style="display: inline-flex" id="authentication_div">
+		<p style="font-weight: bold; margin: auto; width: 110px; text-align: right">Authentication:</p>
+		<div style="margin-left: 10px; width: 120px; cursor: default">
+  			<input style="cursor: pointer" onclick="authenticationClickHandling(event)" type="radio" id="authentication_successful_input" name="authentication" value="Successful" checked>
+  			<label style="cursor: pointer" for="authentication_successful_input">Successful</label><br>
+		</div>
+		<div style="width: 120px; cursor: default">
+  			<input style="cursor: pointer" onclick="authenticationClickHandling(event)" type="radio" id="authentication_failed_input" name="authentication" value="Failed">
+  			<label style="cursor: pointer" for="authentication_failed_input">Failed</label><br>
+		</div>
+	</div>
+	
+  <div style="display: inline-flex" id="edp_div">
+	<p style="font-weight: bold; margin: auto; width: 110px; text-align: right">EDP:</p>
+	<div style="margin-left: 10px; width: 120px; cursor: default">
+  			<input style="cursor: pointer" type="radio" id="edp_full_input" name="edp" value="Full" checked>
+  			<label style="cursor: pointer" for="edp_full_input">Full</label><br>
+	</div>
+	<div style="width: 120px; cursor: default">
+  			<input style="cursor: pointer" type="radio" id="edp_none_input" name="edp" value="None">
+  			<label style="cursor: pointer" for="edp_none_input">None</label><br>
+	</div>
+</div>
+
+  <div style="display: inline-flex" id="gender_div">
+	<p style="font-weight: bold; margin: auto; width: 110px; text-align: right">Gender:</p>
+	<div style="margin-left: 10px; width: 120px; cursor: default">
+  			<input style="cursor: pointer" type="radio" id="gender_female_input" name="gender" value="Female" checked>
+  			<label style="cursor: pointer" for="gender_female_input">Female</label><br>
+	</div>
+	<div style="width: 120px; cursor: default">
+  			<input style="cursor: pointer" type="radio" id="gender_male_input" name="gender" value="Male">
+  			<label style="cursor: pointer" for="gender_male_input">Male</label><br>
+	</div>
+</div>
+
+  <div style="display: none" id="format_div">
+	<p style="font-weight: bold; margin: auto; width: 110px; text-align: right">Format:</p>
+	<div style="margin-left: 10px; width: 120px; cursor: default">
+  			<input style="cursor: pointer" onclick="formatClickHandling(event)" type="radio" id="format_original_input" name="format" value="Original" checked>
+  			<label style="cursor: pointer" for="format_original_input">Original</label><br>
+	</div>
+	<div style="width: 120px; cursor: default">
+  			<input style="cursor: pointer" onclick="formatClickHandling(event)" type="radio" id="format_new_input" name="format" value="New">
+  			<label style="cursor: pointer" for="format_new_input">New</label><br>
+	</div>
+</div>
+
+  <div style="display: inline-flex" id="prod_ready_div">
+	<p style="font-weight: bold; margin: auto; width: 110px; text-align: right">Prod-ready:</p>
+	<div style="margin-left: 10px; width: 120px; cursor: default">
+  			<input style="cursor: pointer" type="radio" id="prod_ready_false_input" name="prod_ready" value="False" checked>
+  			<label style="cursor: pointer" for="prod_ready_false_input">False</label><br>
+	</div>
+	<div style="width: 120px; cursor: default">
+  			<input style="cursor: pointer" type="radio" id="prod_ready_true_input" name="prod_ready" value="True">
+  			<label style="cursor: pointer" for="prod_ready_true_input">True</label><br>
+	</div>
+</div>
+
+</div>
+<hr>
+
+<div style="margin-top: 10px; display: inline-flex">
+	<button onClick="CalculatePersonalNumber()">Calculate</button>
+	<div style="margin-left: 20px">PNO:</div><div style="font-weight: bold" id="personalNumber"></div>
+	<div style="margin-left: 20px">DoB:</div><div style="font-weight: bold" id="birthDate"></div>
+</div>
+</div>
+
+</body>
+</html>
